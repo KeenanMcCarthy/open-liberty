@@ -18,6 +18,8 @@ public class BootstrapExtended extends Bootstrap {
     private ChannelInitializerWrapper initializer;
 
     /**
+     * 
+     * 
      * Apply the given {@link BootstrapConfiguration} to this {@link Bootstrap}
      * Note that most props are implemented via handlers, see {@link TCPChannelInitializerImpl}
      * 
