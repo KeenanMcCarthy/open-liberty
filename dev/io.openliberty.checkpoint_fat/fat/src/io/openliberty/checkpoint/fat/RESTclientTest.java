@@ -10,6 +10,7 @@
  *******************************************************************************/
 package io.openliberty.checkpoint.fat;
 
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
 import java.net.URL;
@@ -66,16 +67,23 @@ public class RESTclientTest {
     @Test
     public void testDefaultEndpoint() throws Exception {
 
-        server.startServer();
-        HttpUtils.findStringInUrl(server, "webappWAR/app/client/properties", "{\'property\':\'value\'}");
-        server.stopServer();
+        /*
+         * server.startServer();
+         * HttpUtils.findStringInUrl(server, "webappWAR/app/client/properties", "{\'property\':\'value\'}");
+         * server.stopServer();
+         */
 
-        server.setCheckpoint(CheckpointPhase.APPLICATIONS, false, null);
+        server.setCheckpoint(CheckpointPhase.APPLICATIONS, false, server -> {
+            String atStartup = server.waitForStringInLog("Initializing class at startup: ");
+            assertNotNull("Application scoped not loaded at startup", atStartup);
+        });
         server.startServer();
 
-        ServerConfiguration config = server.getServerConfiguration();
-        config.getVariables().getById("testClient").setValue("http://localhost:" + server.getHttpDefaultPort() + "/webappWAR/alternate");
-        server.updateServerConfiguration(config);
+        /*
+         * ServerConfiguration config = server.getServerConfiguration();
+         * config.getVariables().getById("testClient").setValue("http://localhost:" + server.getHttpDefaultPort() + "/webappWAR/alternate");
+         * server.updateServerConfiguration(config);
+         */
 
         server.checkpointRestore();
 

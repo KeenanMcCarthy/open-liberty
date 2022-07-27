@@ -20,6 +20,7 @@
         <feature>checkpoint-1.0</feature>
     </featureManager>
 
+	<variable id="toChangeBaseURI" name="toChangeBaseURI" defaultValue="false"/>
 	<variable name="default.http.port" defaultValue="${bvt.prop.HTTP_default}"/>
 	<variable id="testClient" name="testClient/mp-rest/uri" value="http://localhost:${bvt.prop.HTTP_default}/webappWAR/endpoint"/>
 	<webApplication id="webappWAR" location="webappWAR.war" name="webappWAR" contextRoot="webappWAR"/>
