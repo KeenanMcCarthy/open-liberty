@@ -33,7 +33,6 @@ import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
 import org.osgi.framework.FrameworkUtil;
-import org.osgi.framework.ServiceReference;
 
 import com.ibm.websphere.ras.Tr;
 import com.ibm.websphere.ras.TraceComponent;
@@ -50,6 +49,8 @@ import io.openliberty.microprofile.openapi20.internal.utils.LoggingUtils;
 public class OpenAPIUIBundlesUpdater {
 
     private static final TraceComponent tc = Tr.register(OpenAPIUIBundlesUpdater.class);
+
+    private static Object threadLock = new Object();
 
     /**
      * List of OpenAPI-UI bundles
@@ -115,21 +116,9 @@ public class OpenAPIUIBundlesUpdater {
         }
     }
 
-    private static boolean verifyRefs(ServiceReference<Bundle>[] refs, Set<String> expectedBundles) {
-        if (refs == null) {
-            return false;
-        }
-        int foundBundles = 0;
-        for (ServiceReference<Bundle> ref : refs) {
-            String bundleKey = (String) ref.getProperty("web.module.key");
-            String bundleName = bundleKey.substring(0, bundleKey.indexOf('#'));
-            if (expectedBundles.contains(bundleName))
-                foundBundles++;
-        }
-        if (foundBundles == expectedBundles.size()) {
-            return true;
-        } else {
-            return false;
+    public static void unlockThread() {
+        synchronized (threadLock) {
+            threadLock.notifyAll();
         }
     }
 
@@ -313,6 +302,7 @@ public class OpenAPIUIBundlesUpdater {
     @SuppressWarnings("unchecked")
     private static boolean waitForBundlesToStart(Set<Bundle> openAPIUIBundles) {
         boolean waitComplete = false;
+
         Set<String> expectedBundleNames = new HashSet<>();
         for (Bundle bundle : openAPIUIBundles) {
             expectedBundleNames.add(bundle.getSymbolicName());
@@ -320,21 +310,9 @@ public class OpenAPIUIBundlesUpdater {
 
         try {
             BundleContext bundleContext = FrameworkUtil.getBundle(OpenAPIUIBundlesUpdater.class).getBundleContext();
-            ServiceReference<Bundle>[] refs = (ServiceReference<Bundle>[]) bundleContext.getServiceReferences(Bundle.class.getName(), "(installed.wab.contextRoot=*)");
-            waitComplete = verifyRefs(refs, expectedBundleNames);
-            while (!waitComplete) {
-                if (stopping) {
-                    if (LoggingUtils.isDebugEnabled(tc)) {
-                        Tr.debug(tc, "Stopped waiting for OpenAPI bundles because the server is shutting down");
-                    }
-                    return false;
-                }
-                refs = (ServiceReference<Bundle>[]) bundleContext.getServiceReferences(Bundle.class.getName(), "(installed.wab.contextRoot=*)");
-                waitComplete = verifyRefs(refs, expectedBundleNames);
-                if (!waitComplete) {
-                    //sleep UI bundle update thread to prevent getting services refs all the time
-                    Thread.sleep(500);
-                }
+            bundleContext.addServiceListener(new OpenAPIUIBundlesListener(expectedBundleNames));
+            synchronized (threadLock) {
+                threadLock.wait();
             }
         } catch (Exception e) {
             waitComplete = false;
