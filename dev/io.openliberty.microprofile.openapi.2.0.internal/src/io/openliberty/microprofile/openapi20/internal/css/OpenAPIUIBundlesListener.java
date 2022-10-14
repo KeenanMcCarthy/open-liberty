@@ -1,6 +1,7 @@
 package io.openliberty.microprofile.openapi20.internal.css;
 
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 import org.osgi.framework.Bundle;
 import org.osgi.framework.ServiceEvent;
@@ -13,24 +14,39 @@ import org.osgi.framework.ServiceReference;
  */
 public class OpenAPIUIBundlesListener implements ServiceListener {
 
-    private final Set<String> expectedBundleNames;
+    private Set<String> expectedBundleNames;
+    private CountDownLatch countDownLatch;
 
-    public OpenAPIUIBundlesListener(Set<String> expectedBundleNames) {
+    public OpenAPIUIBundlesListener(Set<String> expectedBundleNames, CountDownLatch countDownLatch, ServiceReference<Bundle>[] refs) {
         this.expectedBundleNames = expectedBundleNames;
+        this.countDownLatch = countDownLatch;
+        checkExistingServices(refs);
     }
 
-    @Override
-    public void serviceChanged(ServiceEvent event) {
-        ServiceReference<Bundle> sb = (ServiceReference<Bundle>) event.getServiceReference();
-        String bundleKey = (String) sb.getProperty("web.module.key");
-        if (bundleKey != null) {
-            System.out.println("bundleKey: " + bundleKey);
+    private void checkExistingServices(ServiceReference<Bundle>[] refs) {
+        if (refs == null) {
+            return;
+        }
+        for (ServiceReference<Bundle> ref : refs) {
+            String bundleKey = (String) ref.getProperty("web.module.key");
             String bundleName = bundleKey.substring(0, bundleKey.indexOf('#'));
-            if (expectedBundleNames.contains(bundleName))
+            if (expectedBundleNames.contains(bundleName)) {
                 expectedBundleNames.remove(bundleName);
-            if (expectedBundleNames.isEmpty())
-                OpenAPIUIBundlesUpdater.unlockThread();
+                countDownLatch.countDown();
+            }
         }
     }
 
+    @Override
+    public synchronized void serviceChanged(ServiceEvent event) {
+        ServiceReference<Bundle> sb = (ServiceReference<Bundle>) event.getServiceReference();
+        String bundleKey = (String) sb.getProperty("web.module.key");
+        if (bundleKey != null) {
+            String bundleName = bundleKey.substring(0, bundleKey.indexOf('#'));
+            if (expectedBundleNames.contains(bundleName)) {
+                expectedBundleNames.remove(bundleName);
+                countDownLatch.countDown();
+            }
+        }
+    }
 }
