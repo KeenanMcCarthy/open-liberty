@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -33,6 +34,7 @@ import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
 import org.osgi.framework.FrameworkUtil;
+import org.osgi.framework.ServiceReference;
 
 import com.ibm.websphere.ras.Tr;
 import com.ibm.websphere.ras.TraceComponent;
@@ -49,8 +51,6 @@ import io.openliberty.microprofile.openapi20.internal.utils.LoggingUtils;
 public class OpenAPIUIBundlesUpdater {
 
     private static final TraceComponent tc = Tr.register(OpenAPIUIBundlesUpdater.class);
-
-    private static Object threadLock = new Object();
 
     /**
      * List of OpenAPI-UI bundles
@@ -113,12 +113,6 @@ public class OpenAPIUIBundlesUpdater {
                     openAPIUIBundle.start();
                 }
             }
-        }
-    }
-
-    public static void unlockThread() {
-        synchronized (threadLock) {
-            threadLock.notifyAll();
         }
     }
 
@@ -310,10 +304,10 @@ public class OpenAPIUIBundlesUpdater {
 
         try {
             BundleContext bundleContext = FrameworkUtil.getBundle(OpenAPIUIBundlesUpdater.class).getBundleContext();
-            bundleContext.addServiceListener(new OpenAPIUIBundlesListener(expectedBundleNames));
-            synchronized (threadLock) {
-                threadLock.wait();
-            }
+            ServiceReference<Bundle>[] refs = (ServiceReference<Bundle>[]) bundleContext.getServiceReferences(Bundle.class.getName(), "(installed.wab.contextRoot=*)");
+            CountDownLatch latch = new CountDownLatch(expectedBundleNames.size());
+            bundleContext.addServiceListener(new OpenAPIUIBundlesListener(expectedBundleNames, latch, refs));
+            latch.await();
         } catch (Exception e) {
             waitComplete = false;
             if (LoggingUtils.isEventEnabled(tc)) {
