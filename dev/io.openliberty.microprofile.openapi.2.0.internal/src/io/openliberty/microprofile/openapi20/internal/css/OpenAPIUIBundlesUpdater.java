@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -297,9 +298,9 @@ public class OpenAPIUIBundlesUpdater {
     private static boolean waitForBundlesToStart(Set<Bundle> openAPIUIBundles) {
         boolean waitComplete = false;
 
-        Set<String> expectedBundleNames = new HashSet<>();
+        ConcurrentHashMap<String, Boolean> expectedBundleNames = new ConcurrentHashMap<>();
         for (Bundle bundle : openAPIUIBundles) {
-            expectedBundleNames.add(bundle.getSymbolicName());
+            expectedBundleNames.put(bundle.getSymbolicName(), true);
         }
 
         try {

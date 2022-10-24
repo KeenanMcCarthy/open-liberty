@@ -10,7 +10,7 @@
  *******************************************************************************/
 package io.openliberty.microprofile.openapi20.internal.css;
 
-import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 
 import org.osgi.framework.Bundle;
@@ -24,39 +24,36 @@ import org.osgi.framework.ServiceReference;
  */
 public class OpenAPIUIBundlesListener implements ServiceListener {
 
-    private Set<String> expectedBundleNames;
+    private ConcurrentHashMap<String, Boolean> expectedBundleNames;
     private CountDownLatch countDownLatch;
 
-    public OpenAPIUIBundlesListener(Set<String> expectedBundleNames, CountDownLatch countDownLatch, ServiceReference<Bundle>[] refs) {
+    public OpenAPIUIBundlesListener(ConcurrentHashMap<String, Boolean> expectedBundleNames, CountDownLatch countDownLatch, ServiceReference<Bundle>[] refs) {
         this.expectedBundleNames = expectedBundleNames;
         this.countDownLatch = countDownLatch;
         checkExistingServices(refs);
     }
 
-    private void checkExistingServices(ServiceReference<Bundle>[] refs) {
-        if (refs == null) {
-            return;
+    private void removeIfExpectedBundle(ServiceReference<Bundle> ref) {
+        String bundleKey = (String) ref.getProperty("web.module.key");
+        String bundleName = bundleKey.substring(0, bundleKey.indexOf('#'));
+        if (expectedBundleNames.contains(bundleName)) {
+            expectedBundleNames.remove(bundleName);
+            countDownLatch.countDown();
         }
-        for (ServiceReference<Bundle> ref : refs) {
-            String bundleKey = (String) ref.getProperty("web.module.key");
-            String bundleName = bundleKey.substring(0, bundleKey.indexOf('#'));
-            if (expectedBundleNames.contains(bundleName)) {
-                expectedBundleNames.remove(bundleName);
-                countDownLatch.countDown();
+    }
+
+    private void checkExistingServices(ServiceReference<Bundle>[] refs) {
+        if (refs != null) {
+            for (ServiceReference<Bundle> ref : refs) {
+                removeIfExpectedBundle(ref);
             }
         }
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public synchronized void serviceChanged(ServiceEvent event) {
-        ServiceReference<Bundle> sb = (ServiceReference<Bundle>) event.getServiceReference();
-        String bundleKey = (String) sb.getProperty("web.module.key");
-        if (bundleKey != null) {
-            String bundleName = bundleKey.substring(0, bundleKey.indexOf('#'));
-            if (expectedBundleNames.contains(bundleName)) {
-                expectedBundleNames.remove(bundleName);
-                countDownLatch.countDown();
-            }
-        }
+        ServiceReference<Bundle> ref = (ServiceReference<Bundle>) event.getServiceReference();
+        removeIfExpectedBundle(ref);
     }
 }
